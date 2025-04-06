@@ -173,6 +173,10 @@
       <source src="redline.mp3" type="audio/mpeg">
       Your browser does not support the audio element.
     </audio>
+    <audio id="reload-sound">
+      <source src="reload.mp3" type="audio/mpeg">
+      Your browser does not support the audio element.
+    </audio>
 
     <script>
       let camera, scene, renderer;
@@ -188,7 +192,7 @@
       let gamePaused = true;
       let spawnInterval;
       let spawnRate = 2000;
-      let backgroundMusic, shootSound, autoShootSound, gameOverSound, redlineSound;
+      let backgroundMusic, shootSound, autoShootSound, gameOverSound, redlineSound, reloadSound;
       let isFullAuto = false;
       let canShoot = true;
       let autoFireInterval = null;
@@ -321,6 +325,8 @@
           gameOverSound.volume = 0.7;
           redlineSound = document.getElementById('redline-sound');
           redlineSound.volume = 0.7;
+          reloadSound = document.getElementById('reload-sound');
+          reloadSound.volume = 0.7;
 
           window.addEventListener('resize', onWindowResize);
           console.log('Initialization complete. Click to start.');
@@ -468,6 +474,7 @@
               autoShootSound.play().catch(error => {
                 console.error('Error playing auto shoot sound:', error);
               });
+              if (!fullAutoTimer) activateFullAuto(false); // Start timer only if not already running
             }
           } else {
             shoot();
@@ -479,7 +486,11 @@
         if (event.button === 0 && isFullAuto && autoFireInterval) {
           clearInterval(autoFireInterval);
           autoFireInterval = null;
-          // Sound continues until timer expires
+          autoShootSound.pause(); // Stop sound immediately
+          if (fullAutoTimer) {
+            clearTimeout(fullAutoTimer); // Reset the timer
+            fullAutoTimer = null;
+          }
         }
       }
       
@@ -596,7 +607,14 @@
       function checkPowerUps() {
         const powerUpText = document.getElementById('power-up-text');
         if (score >= 50 && !isFullAuto && !fullAutoTimer && canShoot) {
-          activateFullAuto(true);
+          isFullAuto = true;
+          powerUpText.textContent = "200 BPM";
+          powerUpText.style.display = 'block';
+          setTimeout(() => {
+            if (powerUpText.textContent === "200 BPM" && !redlineTextActive) {
+              powerUpText.style.display = 'none';
+            }
+          }, 2000);
         }
         const redlineThreshold = Math.floor(score / 100) * 100;
         if (score >= 100 && redlineThreshold > lastRedlineThreshold) {
@@ -609,27 +627,20 @@
       }
       
       function activateFullAuto(showText) {
-        isFullAuto = true;
         canShoot = true;
-        const powerUpText = document.getElementById('power-up-text');
-        if (showText) {
-          powerUpText.textContent = "200 BPM";
-          powerUpText.style.display = 'block';
-          setTimeout(() => {
-            if (powerUpText.textContent === "200 BPM" && !redlineTextActive) {
-              powerUpText.style.display = 'none';
-            }
-          }, 2000);
-        }
-        
         fullAutoTimer = setTimeout(() => {
           isFullAuto = false;
           canShoot = false;
           if (autoFireInterval) clearInterval(autoFireInterval);
           autoFireInterval = null;
           autoShootSound.pause();
+          const powerUpText = document.getElementById('power-up-text');
           powerUpText.textContent = "PUSH R TO CUE";
           powerUpText.style.display = 'block';
+          reloadSound.currentTime = 0;
+          reloadSound.play().catch(error => {
+            console.error('Error playing reload sound:', error);
+          });
           fullAutoTimer = null;
         }, 10000); // 10 seconds
       }
@@ -640,6 +651,7 @@
           powerUpText.style.display = redlineTextActive ? 'block' : 'none';
           if (redlineTextActive) powerUpText.textContent = "PUSH F TO REDLINE";
         }
+        isFullAuto = true;
         activateFullAuto(false);
       }
       
