@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>NO SONG REQUESTS</title>
+    <style>
+      body { margin: 0; overflow: hidden; background-color: #000; }
+      #instructions {
+        position: absolute;
+        top: 50%;
+        width: 100%;
+        text-align: center;
+        color: #fff;
+        font-family: "Arial Black", sans-serif;
+        user-select: none;
+        cursor: pointer;
+        font-size: 24px;
+        text-shadow: 0 0 5px #000;
+        z-index: 50;
+      }
+      #dj-equipment {
+        position: fixed;
+        bottom: -33vh;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 66vw;
+        height: 66vh;
+        object-fit: cover;
+        object-position: center top;
+        z-index: 10;
+        pointer-events: none;
+      }
+      #score {
+        position: fixed;
+        bottom: 10px;
+        right: 10px;
+        color: #fff;
+        font-family: "Arial Black", sans-serif;
+        font-size: 20px;
+        z-index: 11;
+      }
+      #controls {
+        position: fixed;
+        bottom: 10px;
+        left: 10px;
+        color: #fff;
+        font-family: "Arial Black", sans-serif;
+        font-size: 20px;
+        z-index: 11;
+      }
+      #crosshair {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        width: 20px;
+        height: 20px;
+        transform: translate(-50%, -50%);
+        z-index: 12;
+        pointer-events: none;
+      }
+      #crosshair::before, #crosshair::after {
+        content: '';
+        position: absolute;
+        background: #39858E;
+      }
+      #crosshair::before {
+        width: 1px;
+        height: 10px;
+        left: 4.5px;
+      }
+      #crosshair::after {
+        width: 10px;
+        height: 1px;
+        top: 4.5px;
+      }
+      #play-button-fire {
+        position: fixed;
+        bottom: 10vh;
+        left: 50%;
+        width: 0;
+        height: 0;
+        border-left: 10px solid transparent;
+        border-right: 10px solid transparent;
+        border-bottom: 20px solid #00ff00;
+        transform: translateX(-50%);
+        z-index: 11;
+        pointer-events: none;
+        display: none;
+      }
+      #game-over {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 100%;
+        text-align: center;
+        color: #ff0000;
+        font-family: "Arial Black", sans-serif;
+        font-size: 48px;
+        text-shadow: 0 0 10px #000;
+        display: none;
+        z-index: 100;
+      }
+      #final-score {
+        color: #fff;
+        font-size: 36px;
+        margin-bottom: 10px;
+      }
+      #try-again {
+        margin-top: 20px;
+        padding: 10px 20px;
+        font-size: 24px;
+        font-family: "Arial Black", sans-serif;
+        cursor: pointer;
+        background-color: #fff;
+        color: #000;
+        border: none;
+      }
+      #power-up-text {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: #ffffff;
+        font-family: "Arial Black", sans-serif;
+        font-style: italic;
+        font-size: 36px;
+        text-shadow: 0 0 10px #000;
+        z-index: 13;
+        display: none;
+      }
+      canvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        z-index: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="instructions">
+      CLICK TO PLAY<br>
+    </div>
+    <img id="dj-equipment" src="https://pioneerdjstore.com/cdn/shop/products/xdj-rr-front-angle.png?v=1686769236&width=1946" alt="Pioneer DJ Equipment">
+    <div id="score">SCORE: 0</div>
+    <div id="controls">WASD + MOUSE</div>
+    <div id="crosshair"></div>
+    <div id="play-button-fire"></div>
+    <div id="game-over">
+      <div id="final-score"></div>
+      GAME OVER
+      <br>
+      <button id="try-again">TRY AGAIN</button>
+    </div>
+    <div id="power-up-text"></div>
+    <audio id="background-music" loop>
+      <source src="https://www.dropbox.com/scl/fi/iy71vvrmadm35iakesjtn/GenericTechnoEnV.mp3?rlkey=ydnl7uy7dmcwbk5xu6xmnavrp&st=bk6d1aow&raw=1" type="audio/mpeg">
+      Your browser does not support the audio element.
+    </audio>
+    <audio id="shoot-sound">
+      <source src="https://www.dropbox.com/scl/fi/57em56ykcxw5inkpxv9eb/fire.mp3?rlkey=0ibl1b4bhiovrxmbq44220w2v&st=q0qns88y&raw=1" type="audio/mpeg">
+      Your browser does not support the audio element.
+    </audio>
+    <audio id="auto-shoot-sound" loop>
+      <source src="https://www.dropbox.com/scl/fi/3qgb6pqarbvcffwhj4vhc/180.mp3?rlkey=zisy1ov0mwrcr5y8sm35yrb80&st=evjkjlpt&raw=1" type="audio/mpeg">
+      Your browser does not support the audio element.
+    </audio>
+    <audio id="game-over-sound">
+      <source src="https://www.dropbox.com/scl/fi/doef22fwejr3e9vfrc2lp/gameover2.mp3?rlkey=ttfzuhvjgkm0gj6nx6tv4y3fd&st=21y15jhc&raw=1" type="audio/mpeg">
+      Your browser does not support the audio element.
+    </audio>
+
+    <script>
+      let camera, scene, renderer;
+      let playerObject;
+      let enemyObjects = [];
+      let particleSystems = [];
+      let raycaster;
+      let clock;
+      let enemyTexture;
+      let pinkLight, cyanLight, purpleLight, greenLight, blueLight;
+      let score = 0;
+      let gameOver = false;
+      let gamePaused = true;
+      let spawnInterval;
+      let spawnRate = 2000;
+      let backgroundMusic, shootSound, autoShootSound, gameOverSound;
+      let isFullAuto = false;
+      let autoFireInterval = null;
+      let redlineUses = 0;
+      let lastRedlineThreshold = 0;
+
+      const clubGirlsImageUrl = "https://png.pngtree.com/png-vector/20230905/ourmid/pngtree-club-girls-whispering-two-png-image_9946991.png";
+      const keys = { KeyW: false, KeyA: false, KeyS: false, KeyD: false, KeyF: false };
+      const songRequests = ["Reggaeton", "Losing It", "Lana Del Rey", "Charlie XCX"];
+
+      function initGame() {
+        if (typeof THREE === 'undefined') {
+          console.error('Three.js is not loaded. Check the CDN or network.');
+          return;
+        }
+        console.log('Three.js r128 loaded successfully.');
+        console.log('Initializing game...');
+        init();
+      }
+
+      function init() {
+        try {
+          scene = new THREE.Scene();
+          scene.background = new THREE.Color(0x000000);
+          
+          camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+          camera.position.y = 1.6;
+          
+          playerObject = new THREE.Object3D();
+          playerObject.position.set(0, 0, 0);
+          playerObject.add(camera);
+          scene.add(playerObject);
+          
+          renderer = new THREE.WebGLRenderer({ antialias: true });
+          renderer.setSize(window.innerWidth, window.innerHeight);
+          renderer.setPixelRatio(window.devicePixelRatio);
+          renderer.domElement.style.zIndex = '0';
+          document.body.appendChild(renderer.domElement);
+          
+          document.getElementById('game-over').style.display = 'none';
+
+          const floorGeometry = new THREE.PlaneGeometry(40, 40);
+          const floorMaterial = new THREE.MeshPhongMaterial({ color: 0x111111 });
+          const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+          floor.rotation.x = -Math.PI / 2;
+          floor.position.y = 0;
+          scene.add(floor);
+          
+          const wallMaterial = new THREE.MeshPhongMaterial({ color: 0x0a0a0a });
+          const backWall = new THREE.Mesh(new THREE.PlaneGeometry(40, 20), wallMaterial);
+          backWall.position.z = -20;
+          backWall.position.y = 10;
+          addWallText(backWall, "NO SONG REQUESTS");
+          scene.add(backWall);
+          
+          const frontWall = new THREE.Mesh(new THREE.PlaneGeometry(40, 20), wallMaterial);
+          frontWall.position.z = 20;
+          frontWall.position.y = 10;
+          frontWall.rotation.y = Math.PI;
+          addWallText(frontWall, "NO SONG REQUESTS");
+          scene.add(frontWall);
+          
+          const leftWall = new THREE.Mesh(new THREE.PlaneGeometry(40, 20), wallMaterial);
+          leftWall.position.x = -20;
+          leftWall.position.y = 10;
+          leftWall.rotation.y = Math.PI / 2;
+          addWallText(leftWall, "NO SONG REQUESTS");
+          scene.add(leftWall);
+          
+          const rightWall = new THREE.Mesh(new THREE.PlaneGeometry(40, 20), wallMaterial);
+          rightWall.position.x = 20;
+          rightWall.position.y = 10;
+          rightWall.rotation.y = -Math.PI / 2;
+          addWallText(rightWall, "NO SONG REQUESTS");
+          scene.add(rightWall);
+          
+          const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshPhongMaterial({ color: 0x050505 }));
+          ceiling.position.y = 20;
+          ceiling.rotation.x = Math.PI / 2;
+          scene.add(ceiling);
+          
+          const ambientLight = new THREE.AmbientLight(0x101010);
+          scene.add(ambientLight);
+          
+          purpleLight = new THREE.SpotLight(0xbf00ff, 1);
+          purpleLight.position.set(15, 10, 7.5);
+          purpleLight.angle = Math.PI / 6;
+          purpleLight.penumbra = 0.3;
+          scene.add(purpleLight);
+          
+          greenLight = new THREE.SpotLight(0x00ff9f, 1);
+          greenLight.position.set(-15, 10, -7.5);
+          greenLight.angle = Math.PI / 6;
+          greenLight.penumbra = 0.3;
+          scene.add(greenLight);
+          
+          blueLight = new THREE.SpotLight(0x00c6ff, 1);
+          blueLight.position.set(0, 15, -15);
+          blueLight.angle = Math.PI / 7;
+          blueLight.penumbra = 0.2;
+          scene.add(blueLight);
+          
+          pinkLight = new THREE.PointLight(0xff0080, 0.7, 20);
+          pinkLight.position.set(7.5, 2, 3.75);
+          scene.add(pinkLight);
+          
+          cyanLight = new THREE.PointLight(0x00ffff, 0.7, 20);
+          cyanLight.position.set(-7.5, 2, 3.75);
+          scene.add(cyanLight);
+          
+          const textureLoader = new THREE.TextureLoader();
+          enemyTexture = textureLoader.load(clubGirlsImageUrl);
+          startEnemySpawning();
+          
+          setupPointerLock();
+          raycaster = new THREE.Raycaster();
+          clock = new THREE.Clock();
+
+          // Initialize audio elements
+          backgroundMusic = document.getElementById('background-music');
+          backgroundMusic.volume = 0.5;
+          shootSound = document.getElementById('shoot-sound');
+          shootSound.volume = 0.5;
+          autoShootSound = document.getElementById('auto-shoot-sound');
+          autoShootSound.volume = 0.5;
+          gameOverSound = document.getElementById('game-over-sound');
+          gameOverSound.volume = 0.7;
+
+          window.addEventListener('resize', onWindowResize);
+          console.log('Initialization complete. Click to start.');
+        } catch (error) {
+          console.error('Error during initialization:', error);
+        }
+      }
+      
+      function addWallText(wall, text) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 2048;
+        canvas.height = 256;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 120px "Arial Black"';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText("NO SONG REQUESTS", 1024, 128);
+        
+        const texture = new THREE.CanvasTexture(canvas);
+        const textMaterial = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
+        const textGeometry = new THREE.PlaneGeometry(40, 5);
+        const textMesh = new THREE.Mesh(textGeometry, textMaterial);
+        textMesh.position.y = 1.0;
+        textMesh.position.z = -0.01 * (wall.rotation.y === 0 ? 1 : -1);
+        if (wall.rotation.y === Math.PI) textMesh.rotation.y = Math.PI;
+        wall.add(textMesh);
+      }
+
+      function createSpeechBubble(text) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 512;
+        canvas.height = 256;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(20, 20, 472, 216);
+        ctx.fillStyle = '#000000';
+        ctx.font = 'bold 50px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, 256, 128);
+        const texture = new THREE.CanvasTexture(canvas);
+        const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
+        const geometry = new THREE.PlaneGeometry(2, 1);
+        const bubble = new THREE.Mesh(geometry, material);
+        bubble.position.y = 2.5;
+        return bubble;
+      }
+      
+      function startEnemySpawning() {
+        for (let i = 0; i < 5; i++) {
+          spawnEnemy();
+        }
+        spawnInterval = setInterval(() => {
+          if (!gamePaused && !gameOver) spawnEnemy();
+        }, spawnRate);
+        
+        setInterval(() => {
+          if (!gameOver && !gamePaused) {
+            spawnRate = Math.max(500, spawnRate / 2);
+            clearInterval(spawnInterval);
+            spawnInterval = setInterval(() => {
+              if (!gamePaused && !gameOver) spawnEnemy();
+            }, spawnRate);
+            console.log('Spawn rate updated to:', spawnRate);
+          }
+        }, 20000);
+      }
+      
+      function setupPointerLock() {
+        const instructions = document.getElementById('instructions');
+        const djEquipment = document.getElementById('dj-equipment');
+        
+        instructions.addEventListener('click', function() {
+          if (gamePaused) {
+            console.log('Starting game...');
+            document.body.requestPointerLock();
+            gamePaused = false;
+            backgroundMusic.play().catch(error => {
+              console.error('Error playing background music:', error);
+            });
+            animate();
+          }
+        });
+        
+        const onPointerLockChange = function() {
+          if (document.pointerLockElement === document.body) {
+            console.log('Pointer locked');
+            document.addEventListener('mousemove', onMouseMove, false);
+            document.addEventListener('mousedown', onMouseDown, false);
+            document.addEventListener('mouseup', onMouseUp, false);
+            instructions.style.display = 'none';
+            djEquipment.style.display = 'block';
+          } else {
+            console.log('Pointer unlocked');
+            document.removeEventListener('mousemove', onMouseMove, false);
+            document.removeEventListener('mousedown', onMouseDown, false);
+            document.removeEventListener('mouseup', onMouseUp, false);
+            if (autoFireInterval) clearInterval(autoFireInterval);
+            autoShootSound.pause();
+            if (!gameOver) instructions.style.display = 'block';
+            djEquipment.style.display = 'none';
+            gamePaused = true;
+            backgroundMusic.pause();
+            if (gameOver) document.getElementById('game-over').style.display = 'block';
+          }
+        };
+        
+        document.addEventListener('pointerlockchange', onPointerLockChange, false);
+        document.addEventListener('mozpointerlockchange', onPointerLockChange, false);
+        document.addEventListener('webkitpointerlockchange', onPointerLockChange, false);
+        
+        document.addEventListener('keydown', function(event) {
+          if (event.code === 'Escape' && !gameOver) {
+            document.exitPointerLock();
+            gamePaused = true;
+          }
+          if (keys.hasOwnProperty(event.code)) keys[event.code] = true;
+          if (event.code === 'KeyF' && redlineUses > 0 && !gameOver && !gamePaused) {
+            redlinePower();
+          }
+        });
+        
+        document.addEventListener('keyup', function(event) {
+          if (keys.hasOwnProperty(event.code)) keys[event.code] = false;
+        });
+      }
+      
+      function onMouseMove(event) {
+        if (document.pointerLockElement === document.body && !gameOver) {
+          playerObject.rotation.y -= event.movementX * 0.002;
+        }
+      }
+      
+      function onMouseDown(event) {
+        if (event.button === 0 && !gameOver && document.pointerLockElement === document.body) {
+          if (isFullAuto) {
+            if (!autoFireInterval) {
+              shoot();
+              autoFireInterval = setInterval(shoot, 150);
+              autoShootSound.currentTime = 0;
+              autoShootSound.play().catch(error => {
+                console.error('Error playing auto shoot sound:', error);
+              });
+            }
+          } else {
+            shoot();
+          }
+        }
+      }
+      
+      function onMouseUp(event) {
+        if (event.button === 0 && isFullAuto && autoFireInterval) {
+          clearInterval(autoFireInterval);
+          autoFireInterval = null;
+          autoShootSound.pause();
+        }
+      }
+      
+      function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      }
+      
+      function spawnEnemy() {
+        if (gameOver || enemyObjects.length >= 30) return;
+        const enemyGeometry = new THREE.PlaneGeometry(1, 2);
+        enemyGeometry.translate(0, 1, 0);
+        const enemyMaterial = new THREE.MeshBasicMaterial({
+          map: enemyTexture,
+          transparent: true,
+          side: THREE.DoubleSide
+        });
+        const enemy = new THREE.Mesh(enemyGeometry, enemyMaterial);
+        const spawnPosition = getWallSpawnPosition();
+        enemy.position.set(spawnPosition.x, 0, spawnPosition.z);
+        const randomSong = songRequests[Math.floor(Math.random() * songRequests.length)];
+        enemy.userData = { songRequest: randomSong, hasBubble: false };
+        enemyObjects.push(enemy);
+        scene.add(enemy);
+      }
+      
+      function getWallSpawnPosition() {
+        const wallIndex = Math.floor(Math.random() * 4);
+        const position = { x: 0, z: 0 };
+        const wallDistance = 18.4;
+        
+        switch(wallIndex) {
+          case 0: position.z = -wallDistance; position.x = Math.random() * 36.8 - 18.4; break;
+          case 1: position.x = wallDistance; position.z = Math.random() * 36.8 - 18.4; break;
+          case 2: position.z = wallDistance; position.x = Math.random() * 36.8 - 18.4; break;
+          case 3: position.x = -wallDistance; position.z = Math.random() * 36.8 - 18.4; break;
+        }
+        return position;
+      }
+      
+      function shoot() {
+        if (document.pointerLockElement !== document.body) return;
+        
+        const fire = document.getElementById('play-button-fire');
+        fire.style.display = 'block';
+        let fireY = 10;
+        const fireInterval = setInterval(() => {
+          fireY += 5;
+          fire.style.bottom = `${fireY}vh`;
+          if (fireY > 50) {
+            clearInterval(fireInterval);
+            fire.style.display = 'none';
+            fire.style.bottom = '10vh';
+          }
+        }, 20);
+        
+        if (!isFullAuto) {
+          shootSound.currentTime = 0;
+          shootSound.play().catch(error => {
+            console.error('Error playing shoot sound:', error);
+          });
+        }
+        
+        raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+        const intersects = raycaster.intersectObjects(enemyObjects);
+        if (intersects.length > 0) {
+          const hitEnemy = intersects[0].object;
+          if (hitEnemy.userData.bubble) scene.remove(hitEnemy.userData.bubble);
+          explodeEnemy(hitEnemy);
+          enemyObjects = enemyObjects.filter(obj => obj !== hitEnemy);
+          scene.remove(hitEnemy);
+          score += 1;
+          document.getElementById('score').textContent = `SCORE: ${score}`;
+          checkPowerUps();
+        }
+      }
+      
+      function explodeEnemy(enemy) {
+        const particleCount = 20;
+        const geometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(particleCount * 3);
+        const velocities = new Float32Array(particleCount * 3);
+        
+        for (let i = 0; i < particleCount; i++) {
+          positions[i * 3] = enemy.position.x;
+          positions[i * 3 + 1] = enemy.position.y + 1;
+          positions[i * 3 + 2] = enemy.position.z;
+          velocities[i * 3] = (Math.random() - 0.5) * 2;
+          velocities[i * 3 + 1] = Math.random() * 2;
+          velocities[i * 3 + 2] = (Math.random() - 0.5) * 2;
+        }
+        
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        const material = new THREE.PointsMaterial({ color: 0xff0000, size: 0.1 });
+        const particles = new THREE.Points(geometry, material);
+        scene.add(particles);
+        
+        particleSystems.push({ particles, velocities, lifetime: 1.0 });
+      }
+      
+      function checkPowerUps() {
+        const powerUpText = document.getElementById('power-up-text');
+        if (score >= 50 && !isFullAuto) {
+          isFullAuto = true;
+          powerUpText.textContent = "200 BPM";
+          powerUpText.style.display = 'block';
+          setTimeout(() => { powerUpText.style.display = 'none'; }, 2000);
+        }
+        const redlineThreshold = Math.floor(score / 100) * 100;
+        if (score >= 100 && redlineThreshold > lastRedlineThreshold) {
+          redlineUses = 1;
+          lastRedlineThreshold = redlineThreshold;
+          powerUpText.textContent = "PUSH F TO REDLINE";
+          powerUpText.style.display = 'block';
+          setTimeout(() => { powerUpText.style.display = 'none'; }, 2000);
+        }
+      }
+      
+      function redlinePower() {
+        if (redlineUses <= 0) return;
+        enemyObjects.forEach(enemy => {
+          if (enemy.userData.bubble) scene.remove(enemy.userData.bubble);
+          explodeEnemy(enemy);
+          scene.remove(enemy);
+        });
+        enemyObjects = [];
+        score += 10;
+        document.getElementById('score').textContent = `SCORE: ${score}`;
+        redlineUses--;
+      }
+      
+      function updateMovement(delta) {
+        if (document.pointerLockElement !== document.body || gameOver) return;
+        
+        const speed = 4.0 * delta;
+        let moveForward = 0;
+        let moveRight = 0;
+        
+        if (keys.KeyW) moveForward += speed;
+        if (keys.KeyS) moveForward -= speed;
+        if (keys.KeyA) moveRight -= speed;
+        if (keys.KeyD) moveRight += speed;
+        
+        if (moveForward !== 0 || moveRight !== 0) {
+          const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(playerObject.quaternion);
+          const right = new THREE.Vector3(1, 0, 0).applyQuaternion(playerObject.quaternion);
+          const moveVector = new THREE.Vector3();
+          
+          moveVector.addScaledVector(forward, moveForward);
+          moveVector.addScaledVector(right, moveRight);
+          
+          const newPosition = playerObject.position.clone().add(moveVector);
+          let canMove = true;
+          enemyObjects.forEach(enemy => {
+            const distance = newPosition.distanceTo(enemy.position);
+            if (distance < 1.5) canMove = false;
+          });
+          
+          if (canMove) {
+            playerObject.position.copy(newPosition);
+            playerObject.position.x = Math.max(-18, Math.min(18, playerObject.position.x));
+            playerObject.position.z = Math.max(-18, Math.min(18, playerObject.position.z));
+          }
+        }
+      }
+      
+      function updateEnemies(delta, time) {
+        enemyObjects.forEach(enemy => {
+          const direction = new THREE.Vector3();
+          direction.subVectors(playerObject.position, enemy.position).normalize();
+          const distance = enemy.position.distanceTo(playerObject.position);
+          
+          if (distance > 1.5) {
+            enemy.position.addScaledVector(direction, delta * 2);
+            enemy.position.y = Math.sin(time * 5 + enemy.position.x) * 0.1;
+            if (distance <= 15 && !enemy.userData.hasBubble) {
+              const bubble = createSpeechBubble(enemy.userData.songRequest);
+              enemy.add(bubble);
+              enemy.userData.bubble = bubble;
+              enemy.userData.hasBubble = true;
+            }
+          } else {
+            if (enemy.userData.bubble) scene.remove(enemy.userData.bubble);
+            scene.remove(enemy);
+            enemyObjects = enemyObjects.filter(obj => obj !== enemy);
+            endGame();
+          }
+          
+          enemy.lookAt(playerObject.position);
+        });
+      }
+      
+      function endGame() {
+        console.log('Game over triggered');
+        gameOver = true;
+        clearInterval(spawnInterval);
+        if (autoFireInterval) clearInterval(autoFireInterval);
+        autoShootSound.pause();
+        document.exitPointerLock();
+        backgroundMusic.pause();
+        gameOverSound.currentTime = 0;
+        gameOverSound.play().catch(error => {
+          console.error('Error playing game over sound:', error);
+        });
+        
+        document.getElementById('instructions').style.display = 'none';
+        document.getElementById('final-score').textContent = `FINAL SCORE: ${score}`;
+        
+        let fallAngle = 0;
+        const fallSpeed = 2;
+        const fallInterval = setInterval(() => {
+          fallAngle += fallSpeed * 0.016;
+          playerObject.rotation.z = fallAngle;
+          if (fallAngle >= Math.PI / 2) {
+            clearInterval(fallInterval);
+            playerObject.rotation.z = Math.PI / 2;
+            document.getElementById('game-over').style.display = 'block';
+            document.getElementById('try-again').onclick = restartGame;
+          }
+          renderer.render(scene, camera);
+        }, 16);
+      }
+      
+      function restartGame() {
+        console.log('Restarting game...');
+        gameOverSound.pause(); // Stop game over music
+        gameOver = false;
+        gamePaused = true;
+        score = 0;
+        isFullAuto = false;
+        redlineUses = 0;
+        lastRedlineThreshold = 0;
+        if (autoFireInterval) clearInterval(autoFireInterval);
+        autoFireInterval = null;
+        autoShootSound.pause();
+        document.getElementById('score').textContent = `SCORE: ${score}`;
+        document.getElementById('game-over').style.display = 'none';
+        document.getElementById('instructions').style.display = 'block';
+        playerObject.position.set(0, 0, 0);
+        playerObject.rotation.set(0, 0, 0);
+        enemyObjects.forEach(enemy => {
+          if (enemy.userData.bubble) scene.remove(enemy.userData.bubble);
+          scene.remove(enemy);
+        });
+        enemyObjects = [];
+        particleSystems.forEach(system => scene.remove(system.particles));
+        particleSystems = [];
+        clearInterval(spawnInterval);
+        startEnemySpawning();
+        backgroundMusic.currentTime = 0;
+        backgroundMusic.play().catch(error => {
+          console.error('Error restarting background music:', error);
+        });
+      }
+      
+      function animate() {
+        requestAnimationFrame(animate);
+        
+        const delta = clock.getDelta();
+        const time = clock.getElapsedTime();
+        
+        if (gameOver || gamePaused) {
+          renderer.render(scene, camera);
+          return;
+        }
+        
+        pinkLight.intensity = 0.5 + 0.5 * Math.sin(time * 2);
+        cyanLight.intensity = 0.5 + 0.5 * Math.sin(time * 2 + Math.PI);
+        purpleLight.position.x = 15 * Math.cos(time * 0.5);
+        purpleLight.position.z = 7.5 * Math.sin(time * 0.5);
+        greenLight.position.x = -15 * Math.cos(time * 0.3);
+        greenLight.position.z = -7.5 * Math.sin(time * 0.3);
+        
+        updateMovement(delta);
+        updateEnemies(delta, time);
+        
+        particleSystems.forEach((system, index) => {
+          const positions = system.particles.geometry.attributes.position.array;
+          for (let i = 0; i < positions.length; i += 3) {
+            positions[i] += system.velocities[i] * delta;
+            positions[i + 1] += system.velocities[i + 1] * delta - 0.5 * delta;
+            positions[i + 2] += system.velocities[i + 2] * delta;
+          }
+          system.particles.geometry.attributes.position.needsUpdate = true;
+          system.lifetime -= delta;
+          if (system.lifetime <= 0) {
+            scene.remove(system.particles);
+            particleSystems.splice(index, 1);
+          }
+        });
+        
+        renderer.render(scene, camera);
+      }
+    </script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" onload="initGame()" onerror="console.error('Failed to load Three.js')"></script>
+  </body>
+</html>
