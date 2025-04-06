@@ -461,7 +461,7 @@
           size: 100
         });
         joystick.on('move', (evt, data) => {
-          moveVector.set(data.vector.x, -data.vector.y);
+          moveVector.set(data.vector.x, data.vector.y); // Note: Y-axis not negated here, handled in updateMovement
         });
         joystick.on('end', () => moveVector.set(0, 0));
 
@@ -534,24 +534,24 @@
       
       function spawnEnemy() {
         if (gameOver || enemyObjects.length >= (isMobile ? 15 : 30)) return;
-        let enemyGeometry, enemyMaterial, speedMultiplier = 2;
+        let enemyGeometry, enemyMaterial, speedMultiplier;
         const spawnPosition = getWallSpawnPosition();
         
         if (score >= 100 && Math.random() < 0.33) {
           enemyGeometry = new THREE.PlaneGeometry(2, 4);
-          enemyGeometry.translate(0, 2, 0);
+          enemyGeometry.translate(0, 1, 0);
           enemyMaterial = new THREE.MeshBasicMaterial({ map: fatGirlTexture, transparent: true, side: THREE.DoubleSide });
-          speedMultiplier = 2;
+          speedMultiplier = 1; // Was 2
         } else if (score >= 50 && Math.random() < 0.5) {
           enemyGeometry = new THREE.PlaneGeometry(1, 2);
           enemyGeometry.translate(0, 1, 0);
           enemyMaterial = new THREE.MeshBasicMaterial({ map: girl1Texture, transparent: true, side: THREE.DoubleSide });
-          speedMultiplier = 3;
+          speedMultiplier = 1.5; // Was 3
         } else {
           enemyGeometry = new THREE.PlaneGeometry(1, 2);
           enemyGeometry.translate(0, 1, 0);
           enemyMaterial = new THREE.MeshBasicMaterial({ map: enemyTexture, transparent: true, side: THREE.DoubleSide });
-          speedMultiplier = 2;
+          speedMultiplier = 1; // Was 2
         }
         
         const enemy = new THREE.Mesh(enemyGeometry, enemyMaterial);
@@ -709,15 +709,15 @@
         if (gameOver) return;
         
         const speed = 4.0 * delta;
-        const rotationSpeed = 2.0 * delta; // For joystick panning
+        const rotationSpeed = 1.0 * delta; // Reduced from 2.0 for less sensitivity
         const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(playerObject.quaternion);
         
         if (isMobile) {
           // Joystick X-axis rotates player (pan left/right)
           playerObject.rotation.y -= moveVector.x * rotationSpeed;
-          // Joystick Y-axis moves forward/backward
+          // Joystick Y-axis moves forward/backward (up = forward, down = backward)
           const move = new THREE.Vector3();
-          move.addScaledVector(forward, moveVector.y * speed);
+          move.addScaledVector(forward, moveVector.y * speed); // Positive Y (up) moves forward
           
           if (move.length() > 0) {
             const newPosition = playerObject.position.clone().add(move);
@@ -809,7 +809,7 @@
       }
       
       function restartGame() {
-        gameOverSound.pause(); // Stop game over sound
+        gameOverSound.pause();
         gameOver = false;
         gamePaused = true;
         score = 0;
