@@ -141,7 +141,7 @@
     <div id="instructions">
       CLICK TO PLAY<br>
     </div>
-    <img id="dj-equipment" src="https://pioneerdjstore.com/cdn/shop/products/xdj-rr-front-angle.png?v=1686769236&width=1946" alt="Pioneer DJ Equipment">
+    <img id="dj-equipment" src="xdj.png" alt="Pioneer DJ Equipment">
     <div id="score">SCORE: 0</div>
     <div id="controls">WASD + MOUSE</div>
     <div id="crosshair"></div>
@@ -154,19 +154,27 @@
     </div>
     <div id="power-up-text"></div>
     <audio id="background-music" loop>
-      <source src="https://www.dropbox.com/scl/fi/iy71vvrmadm35iakesjtn/GenericTechnoEnV.mp3?rlkey=ydnl7uy7dmcwbk5xu6xmnavrp&st=bk6d1aow&raw=1" type="audio/mpeg">
+      <source src="GenericTechnoEnV.mp3" type="audio/mpeg">
       Your browser does not support the audio element.
     </audio>
     <audio id="shoot-sound">
-      <source src="https://www.dropbox.com/scl/fi/57em56ykcxw5inkpxv9eb/fire.mp3?rlkey=0ibl1b4bhiovrxmbq44220w2v&st=q0qns88y&raw=1" type="audio/mpeg">
+      <source src="fire.mp3" type="audio/mpeg">
       Your browser does not support the audio element.
     </audio>
     <audio id="auto-shoot-sound" loop>
-      <source src="https://www.dropbox.com/scl/fi/3qgb6pqarbvcffwhj4vhc/180.mp3?rlkey=zisy1ov0mwrcr5y8sm35yrb80&st=evjkjlpt&raw=1" type="audio/mpeg">
+      <source src="200.mp3" type="audio/mpeg">
       Your browser does not support the audio element.
     </audio>
     <audio id="game-over-sound">
-      <source src="https://www.dropbox.com/scl/fi/doef22fwejr3e9vfrc2lp/gameover2.mp3?rlkey=ttfzuhvjgkm0gj6nx6tv4y3fd&st=21y15jhc&raw=1" type="audio/mpeg">
+      <source src="gameover.mp3" type="audio/mpeg">
+      Your browser does not support the audio element.
+    </audio>
+    <audio id="redline-sound">
+      <source src="redline.mp3" type="audio/mpeg">
+      Your browser does not support the audio element.
+    </audio>
+    <audio id="reload-sound">
+      <source src="reload.mp3" type="audio/mpeg">
       Your browser does not support the audio element.
     </audio>
 
@@ -177,21 +185,23 @@
       let particleSystems = [];
       let raycaster;
       let clock;
-      let enemyTexture;
+      let enemyTexture, girl1Texture, fatGirlTexture;
       let pinkLight, cyanLight, purpleLight, greenLight, blueLight;
       let score = 0;
       let gameOver = false;
       let gamePaused = true;
       let spawnInterval;
       let spawnRate = 2000;
-      let backgroundMusic, shootSound, autoShootSound, gameOverSound;
+      let backgroundMusic, shootSound, autoShootSound, gameOverSound, redlineSound, reloadSound;
       let isFullAuto = false;
+      let canShoot = true;
       let autoFireInterval = null;
+      let fullAutoTimer = null;
       let redlineUses = 0;
       let lastRedlineThreshold = 0;
+      let redlineTextActive = false;
 
-      const clubGirlsImageUrl = "https://png.pngtree.com/png-vector/20230905/ourmid/pngtree-club-girls-whispering-two-png-image_9946991.png";
-      const keys = { KeyW: false, KeyA: false, KeyS: false, KeyD: false, KeyF: false };
+      const keys = { KeyW: false, KeyA: false, KeyS: false, KeyD: false, KeyF: false, KeyR: false };
       const songRequests = ["Reggaeton", "Losing It", "Lana Del Rey", "Charlie XCX"];
 
       function initGame() {
@@ -295,7 +305,9 @@
           scene.add(cyanLight);
           
           const textureLoader = new THREE.TextureLoader();
-          enemyTexture = textureLoader.load(clubGirlsImageUrl);
+          enemyTexture = textureLoader.load('girls.png');
+          girl1Texture = textureLoader.load('girl1.png');
+          fatGirlTexture = textureLoader.load('fatgirl.png');
           startEnemySpawning();
           
           setupPointerLock();
@@ -311,6 +323,10 @@
           autoShootSound.volume = 0.5;
           gameOverSound = document.getElementById('game-over-sound');
           gameOverSound.volume = 0.7;
+          redlineSound = document.getElementById('redline-sound');
+          redlineSound.volume = 0.7;
+          reloadSound = document.getElementById('reload-sound');
+          reloadSound.volume = 0.7;
 
           window.addEventListener('resize', onWindowResize);
           console.log('Initialization complete. Click to start.');
@@ -340,7 +356,7 @@
         wall.add(textMesh);
       }
 
-      function createSpeechBubble(text) {
+      function createSpeechBubble(text, isFatGirl) {
         const canvas = document.createElement('canvas');
         canvas.width = 512;
         canvas.height = 256;
@@ -356,7 +372,7 @@
         const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
         const geometry = new THREE.PlaneGeometry(2, 1);
         const bubble = new THREE.Mesh(geometry, material);
-        bubble.position.y = 2.5;
+        bubble.position.y = isFatGirl ? 4.5 : 2.5; // Higher for fatgirl
         return bubble;
       }
       
@@ -432,6 +448,9 @@
           if (event.code === 'KeyF' && redlineUses > 0 && !gameOver && !gamePaused) {
             redlinePower();
           }
+          if (event.code === 'KeyR' && !isFullAuto && !canShoot && score >= 50 && !gameOver && !gamePaused) {
+            reloadFullAuto();
+          }
         });
         
         document.addEventListener('keyup', function(event) {
@@ -446,7 +465,7 @@
       }
       
       function onMouseDown(event) {
-        if (event.button === 0 && !gameOver && document.pointerLockElement === document.body) {
+        if (event.button === 0 && !gameOver && document.pointerLockElement === document.body && canShoot) {
           if (isFullAuto) {
             if (!autoFireInterval) {
               shoot();
@@ -455,6 +474,7 @@
               autoShootSound.play().catch(error => {
                 console.error('Error playing auto shoot sound:', error);
               });
+              if (!fullAutoTimer) activateFullAuto(false); // Start timer only if not already running
             }
           } else {
             shoot();
@@ -466,7 +486,11 @@
         if (event.button === 0 && isFullAuto && autoFireInterval) {
           clearInterval(autoFireInterval);
           autoFireInterval = null;
-          autoShootSound.pause();
+          autoShootSound.pause(); // Stop sound immediately
+          if (fullAutoTimer) {
+            clearTimeout(fullAutoTimer); // Reset the timer
+            fullAutoTimer = null;
+          }
         }
       }
       
@@ -478,18 +502,30 @@
       
       function spawnEnemy() {
         if (gameOver || enemyObjects.length >= 30) return;
-        const enemyGeometry = new THREE.PlaneGeometry(1, 2);
-        enemyGeometry.translate(0, 1, 0);
-        const enemyMaterial = new THREE.MeshBasicMaterial({
-          map: enemyTexture,
-          transparent: true,
-          side: THREE.DoubleSide
-        });
-        const enemy = new THREE.Mesh(enemyGeometry, enemyMaterial);
+        let enemyGeometry, enemyMaterial, speedMultiplier = 2;
         const spawnPosition = getWallSpawnPosition();
+        
+        if (score >= 100 && Math.random() < 0.33) {
+          enemyGeometry = new THREE.PlaneGeometry(2, 4); // Double size
+          enemyGeometry.translate(0, 2, 0); // Center at bottom
+          enemyMaterial = new THREE.MeshBasicMaterial({ map: fatGirlTexture, transparent: true, side: THREE.DoubleSide });
+          speedMultiplier = 2;
+        } else if (score >= 50 && Math.random() < 0.5) {
+          enemyGeometry = new THREE.PlaneGeometry(1, 2);
+          enemyGeometry.translate(0, 1, 0);
+          enemyMaterial = new THREE.MeshBasicMaterial({ map: girl1Texture, transparent: true, side: THREE.DoubleSide });
+          speedMultiplier = 3;
+        } else {
+          enemyGeometry = new THREE.PlaneGeometry(1, 2);
+          enemyGeometry.translate(0, 1, 0);
+          enemyMaterial = new THREE.MeshBasicMaterial({ map: enemyTexture, transparent: true, side: THREE.DoubleSide });
+          speedMultiplier = 2;
+        }
+        
+        const enemy = new THREE.Mesh(enemyGeometry, enemyMaterial);
         enemy.position.set(spawnPosition.x, 0, spawnPosition.z);
         const randomSong = songRequests[Math.floor(Math.random() * songRequests.length)];
-        enemy.userData = { songRequest: randomSong, hasBubble: false };
+        enemy.userData = { songRequest: randomSong, hasBubble: false, speed: speedMultiplier, isFatGirl: enemyMaterial.map === fatGirlTexture };
         enemyObjects.push(enemy);
         scene.add(enemy);
       }
@@ -509,7 +545,7 @@
       }
       
       function shoot() {
-        if (document.pointerLockElement !== document.body) return;
+        if (document.pointerLockElement !== document.body || !canShoot) return;
         
         const fire = document.getElementById('play-button-fire');
         fire.style.display = 'block';
@@ -570,20 +606,53 @@
       
       function checkPowerUps() {
         const powerUpText = document.getElementById('power-up-text');
-        if (score >= 50 && !isFullAuto) {
+        if (score >= 50 && !isFullAuto && !fullAutoTimer && canShoot) {
           isFullAuto = true;
           powerUpText.textContent = "200 BPM";
           powerUpText.style.display = 'block';
-          setTimeout(() => { powerUpText.style.display = 'none'; }, 2000);
+          setTimeout(() => {
+            if (powerUpText.textContent === "200 BPM" && !redlineTextActive) {
+              powerUpText.style.display = 'none';
+            }
+          }, 2000);
         }
         const redlineThreshold = Math.floor(score / 100) * 100;
         if (score >= 100 && redlineThreshold > lastRedlineThreshold) {
           redlineUses = 1;
           lastRedlineThreshold = redlineThreshold;
+          redlineTextActive = true;
           powerUpText.textContent = "PUSH F TO REDLINE";
           powerUpText.style.display = 'block';
-          setTimeout(() => { powerUpText.style.display = 'none'; }, 2000);
         }
+      }
+      
+      function activateFullAuto(showText) {
+        canShoot = true;
+        fullAutoTimer = setTimeout(() => {
+          isFullAuto = false;
+          canShoot = false;
+          if (autoFireInterval) clearInterval(autoFireInterval);
+          autoFireInterval = null;
+          autoShootSound.pause();
+          const powerUpText = document.getElementById('power-up-text');
+          powerUpText.textContent = "PUSH R TO CUE";
+          powerUpText.style.display = 'block';
+          reloadSound.currentTime = 0;
+          reloadSound.play().catch(error => {
+            console.error('Error playing reload sound:', error);
+          });
+          fullAutoTimer = null;
+        }, 10000); // 10 seconds
+      }
+      
+      function reloadFullAuto() {
+        const powerUpText = document.getElementById('power-up-text');
+        if (powerUpText.textContent === "PUSH R TO CUE") {
+          powerUpText.style.display = redlineTextActive ? 'block' : 'none';
+          if (redlineTextActive) powerUpText.textContent = "PUSH F TO REDLINE";
+        }
+        isFullAuto = true;
+        activateFullAuto(false);
       }
       
       function redlinePower() {
@@ -597,6 +666,15 @@
         score += 10;
         document.getElementById('score').textContent = `SCORE: ${score}`;
         redlineUses--;
+        redlineTextActive = false;
+        const powerUpText = document.getElementById('power-up-text');
+        if (powerUpText.textContent === "PUSH F TO REDLINE") {
+          powerUpText.style.display = 'none';
+        }
+        redlineSound.currentTime = 0;
+        redlineSound.play().catch(error => {
+          console.error('Error playing redline sound:', error);
+        });
       }
       
       function updateMovement(delta) {
@@ -641,10 +719,10 @@
           const distance = enemy.position.distanceTo(playerObject.position);
           
           if (distance > 1.5) {
-            enemy.position.addScaledVector(direction, delta * 2);
-            enemy.position.y = Math.sin(time * 5 + enemy.position.x) * 0.1;
+            enemy.position.addScaledVector(direction, delta * enemy.userData.speed);
+            enemy.position.y = 0; // Keep on ground
             if (distance <= 15 && !enemy.userData.hasBubble) {
-              const bubble = createSpeechBubble(enemy.userData.songRequest);
+              const bubble = createSpeechBubble(enemy.userData.songRequest, enemy.userData.isFatGirl);
               enemy.add(bubble);
               enemy.userData.bubble = bubble;
               enemy.userData.hasBubble = true;
@@ -665,6 +743,7 @@
         gameOver = true;
         clearInterval(spawnInterval);
         if (autoFireInterval) clearInterval(autoFireInterval);
+        if (fullAutoTimer) clearTimeout(fullAutoTimer);
         autoShootSound.pause();
         document.exitPointerLock();
         backgroundMusic.pause();
@@ -693,18 +772,23 @@
       
       function restartGame() {
         console.log('Restarting game...');
-        gameOverSound.pause(); // Stop game over music
+        gameOverSound.pause();
         gameOver = false;
         gamePaused = true;
         score = 0;
         isFullAuto = false;
+        canShoot = true;
         redlineUses = 0;
         lastRedlineThreshold = 0;
+        redlineTextActive = false;
         if (autoFireInterval) clearInterval(autoFireInterval);
+        if (fullAutoTimer) clearTimeout(fullAutoTimer);
         autoFireInterval = null;
+        fullAutoTimer = null;
         autoShootSound.pause();
         document.getElementById('score').textContent = `SCORE: ${score}`;
         document.getElementById('game-over').style.display = 'none';
+        document.getElementById('power-up-text').style.display = 'none';
         document.getElementById('instructions').style.display = 'block';
         playerObject.position.set(0, 0, 0);
         playerObject.rotation.set(0, 0, 0);
