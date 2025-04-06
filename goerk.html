@@ -190,10 +190,12 @@
       let spawnRate = 2000;
       let backgroundMusic, shootSound, autoShootSound, gameOverSound, redlineSound;
       let isFullAuto = false;
+      let canShoot = true;
       let autoFireInterval = null;
       let fullAutoTimer = null;
       let redlineUses = 0;
       let lastRedlineThreshold = 0;
+      let redlineTextActive = false;
 
       const keys = { KeyW: false, KeyA: false, KeyS: false, KeyD: false, KeyF: false, KeyR: false };
       const songRequests = ["Reggaeton", "Losing It", "Lana Del Rey", "Charlie XCX"];
@@ -296,7 +298,7 @@
           
           cyanLight = new THREE.PointLight(0x00ffff, 0.7, 20);
           cyanLight.position.set(-7.5, 2, 3.75);
-          scene.add(cyanLight);
+          scene.add(cayamLight);
           
           const textureLoader = new THREE.TextureLoader();
           enemyTexture = textureLoader.load('girls.png');
@@ -348,7 +350,7 @@
         wall.add(textMesh);
       }
 
-      function createSpeechBubble(text) {
+      function createSpeechBubble(text, isFatGirl) {
         const canvas = document.createElement('canvas');
         canvas.width = 512;
         canvas.height = 256;
@@ -364,7 +366,7 @@
         const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
         const geometry = new THREE.PlaneGeometry(2, 1);
         const bubble = new THREE.Mesh(geometry, material);
-        bubble.position.y = 2.5;
+        bubble.position.y = isFatGirl ? 4.5 : 2.5; // Higher for fatgirl
         return bubble;
       }
       
@@ -440,7 +442,7 @@
           if (event.code === 'KeyF' && redlineUses > 0 && !gameOver && !gamePaused) {
             redlinePower();
           }
-          if (event.code === 'KeyR' && !isFullAuto && score >= 50 && !gameOver && !gamePaused) {
+          if (event.code === 'KeyR' && !isFullAuto && !canShoot && score >= 50 && !gameOver && !gamePaused) {
             reloadFullAuto();
           }
         });
@@ -457,7 +459,7 @@
       }
       
       function onMouseDown(event) {
-        if (event.button === 0 && !gameOver && document.pointerLockElement === document.body) {
+        if (event.button === 0 && !gameOver && document.pointerLockElement === document.body && canShoot) {
           if (isFullAuto) {
             if (!autoFireInterval) {
               shoot();
@@ -477,7 +479,7 @@
         if (event.button === 0 && isFullAuto && autoFireInterval) {
           clearInterval(autoFireInterval);
           autoFireInterval = null;
-          // Don't stop sound here; let timer handle it
+          // Sound continues until timer expires
         }
       }
       
@@ -494,25 +496,25 @@
         
         if (score >= 100 && Math.random() < 0.33) {
           enemyGeometry = new THREE.PlaneGeometry(2, 4); // Double size
-          enemyGeometry.translate(0, 2, 0);
+          enemyGeometry.translate(0, 2, 0); // Center at bottom
           enemyMaterial = new THREE.MeshBasicMaterial({ map: fatGirlTexture, transparent: true, side: THREE.DoubleSide });
-          speedMultiplier = 2; // Normal speed
+          speedMultiplier = 2;
         } else if (score >= 50 && Math.random() < 0.5) {
           enemyGeometry = new THREE.PlaneGeometry(1, 2);
           enemyGeometry.translate(0, 1, 0);
           enemyMaterial = new THREE.MeshBasicMaterial({ map: girl1Texture, transparent: true, side: THREE.DoubleSide });
-          speedMultiplier = 3; // Faster
+          speedMultiplier = 3;
         } else {
           enemyGeometry = new THREE.PlaneGeometry(1, 2);
           enemyGeometry.translate(0, 1, 0);
           enemyMaterial = new THREE.MeshBasicMaterial({ map: enemyTexture, transparent: true, side: THREE.DoubleSide });
-          speedMultiplier = 2; // Normal speed
+          speedMultiplier = 2;
         }
         
         const enemy = new THREE.Mesh(enemyGeometry, enemyMaterial);
         enemy.position.set(spawnPosition.x, 0, spawnPosition.z);
         const randomSong = songRequests[Math.floor(Math.random() * songRequests.length)];
-        enemy.userData = { songRequest: randomSong, hasBubble: false, speed: speedMultiplier };
+        enemy.userData = { songRequest: randomSong, hasBubble: false, speed: speedMultiplier, isFatGirl: enemyMaterial.map === fatGirlTexture };
         enemyObjects.push(enemy);
         scene.add(enemy);
       }
@@ -532,7 +534,7 @@
       }
       
       function shoot() {
-        if (document.pointerLockElement !== document.body) return;
+        if (document.pointerLockElement !== document.body || !canShoot) return;
         
         const fire = document.getElementById('play-button-fire');
         fire.style.display = 'block';
@@ -593,41 +595,52 @@
       
       function checkPowerUps() {
         const powerUpText = document.getElementById('power-up-text');
-        if (score >= 50 && !isFullAuto && !fullAutoTimer) {
-          activateFullAuto();
+        if (score >= 50 && !isFullAuto && !fullAutoTimer && canShoot) {
+          activateFullAuto(true);
         }
         const redlineThreshold = Math.floor(score / 100) * 100;
         if (score >= 100 && redlineThreshold > lastRedlineThreshold) {
           redlineUses = 1;
           lastRedlineThreshold = redlineThreshold;
+          redlineTextActive = true;
           powerUpText.textContent = "PUSH F TO REDLINE";
           powerUpText.style.display = 'block';
-          setTimeout(() => { powerUpText.style.display = 'none'; }, 2000);
         }
       }
       
-      function activateFullAuto() {
+      function activateFullAuto(showText) {
         isFullAuto = true;
+        canShoot = true;
         const powerUpText = document.getElementById('power-up-text');
-        powerUpText.textContent = "200 BPM";
-        powerUpText.style.display = 'block';
-        setTimeout(() => { powerUpText.style.display = 'none'; }, 2000);
+        if (showText) {
+          powerUpText.textContent = "200 BPM";
+          powerUpText.style.display = 'block';
+          setTimeout(() => {
+            if (powerUpText.textContent === "200 BPM" && !redlineTextActive) {
+              powerUpText.style.display = 'none';
+            }
+          }, 2000);
+        }
         
         fullAutoTimer = setTimeout(() => {
           isFullAuto = false;
+          canShoot = false;
           if (autoFireInterval) clearInterval(autoFireInterval);
           autoFireInterval = null;
           autoShootSound.pause();
           powerUpText.textContent = "PUSH R TO CUE";
           powerUpText.style.display = 'block';
           fullAutoTimer = null;
-        }, 19000); // 19 seconds
+        }, 10000); // 10 seconds
       }
       
       function reloadFullAuto() {
         const powerUpText = document.getElementById('power-up-text');
-        powerUpText.style.display = 'none';
-        activateFullAuto();
+        if (powerUpText.textContent === "PUSH R TO CUE") {
+          powerUpText.style.display = redlineTextActive ? 'block' : 'none';
+          if (redlineTextActive) powerUpText.textContent = "PUSH F TO REDLINE";
+        }
+        activateFullAuto(false);
       }
       
       function redlinePower() {
@@ -641,6 +654,11 @@
         score += 10;
         document.getElementById('score').textContent = `SCORE: ${score}`;
         redlineUses--;
+        redlineTextActive = false;
+        const powerUpText = document.getElementById('power-up-text');
+        if (powerUpText.textContent === "PUSH F TO REDLINE") {
+          powerUpText.style.display = 'none';
+        }
         redlineSound.currentTime = 0;
         redlineSound.play().catch(error => {
           console.error('Error playing redline sound:', error);
@@ -690,9 +708,9 @@
           
           if (distance > 1.5) {
             enemy.position.addScaledVector(direction, delta * enemy.userData.speed);
-            enemy.position.y = Math.sin(time * 5 + enemy.position.x) * 0.1;
+            enemy.position.y = 0; // Keep on ground
             if (distance <= 15 && !enemy.userData.hasBubble) {
-              const bubble = createSpeechBubble(enemy.userData.songRequest);
+              const bubble = createSpeechBubble(enemy.userData.songRequest, enemy.userData.isFatGirl);
               enemy.add(bubble);
               enemy.userData.bubble = bubble;
               enemy.userData.hasBubble = true;
@@ -747,8 +765,10 @@
         gamePaused = true;
         score = 0;
         isFullAuto = false;
+        canShoot = true;
         redlineUses = 0;
         lastRedlineThreshold = 0;
+        redlineTextActive = false;
         if (autoFireInterval) clearInterval(autoFireInterval);
         if (fullAutoTimer) clearTimeout(fullAutoTimer);
         autoFireInterval = null;
