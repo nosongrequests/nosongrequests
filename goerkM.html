@@ -240,9 +240,9 @@
       let redlineTextActive = false;
       let isMobile = /Mobi|Android/i.test(navigator.userAgent);
       let joystick, moveVector = new THREE.Vector2(0, 0);
-      let touchStartX, touchStartY, isAiming = false;
 
       const songRequests = ["Reggaeton", "Losing It", "Lana Del Rey", "Charlie XCX"];
+      const keys = { KeyW: false, KeyA: false, KeyS: false, KeyD: false, KeyF: false, KeyR: false };
 
       function init() {
         scene = new THREE.Scene();
@@ -478,26 +478,6 @@
         redlineButton.addEventListener('touchstart', () => {
           if (redlineUses > 0) redlinePower();
         });
-
-        document.addEventListener('touchstart', (e) => {
-          if (e.target.tagName !== 'DIV' && e.touches.length === 1) {
-            touchStartX = e.touches[0].clientX;
-            touchStartY = e.touches[0].clientY;
-            isAiming = true;
-          }
-        });
-        document.addEventListener('touchmove', (e) => {
-          if (isAiming && e.touches.length === 1) {
-            const deltaX = e.touches[0].clientX - touchStartX;
-            const deltaY = e.touches[0].clientY - touchStartY;
-            playerObject.rotation.y -= deltaX * 0.002;
-            camera.rotation.x -= deltaY * 0.002;
-            camera.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, camera.rotation.x));
-            touchStartX = e.touches[0].clientX;
-            touchStartY = e.touches[0].clientY;
-          }
-        });
-        document.addEventListener('touchend', () => isAiming = false);
       }
 
       function onMouseMove(event) {
@@ -537,11 +517,14 @@
       }
 
       function onKeyDown(event) {
+        if (keys.hasOwnProperty(event.code)) keys[event.code] = true;
         if (event.code === 'KeyF' && redlineUses > 0) redlinePower();
         if (event.code === 'KeyR' && !isFullAuto && !canShoot && score >= 50) reloadFullAuto();
       }
 
-      function onKeyUp(event) {}
+      function onKeyUp(event) {
+        if (keys.hasOwnProperty(event.code)) keys[event.code] = false;
+      }
       
       function onWindowResize() {
         camera.aspect = window.innerWidth / window.innerHeight;
@@ -726,31 +709,47 @@
         if (gameOver) return;
         
         const speed = 4.0 * delta;
+        const rotationSpeed = 2.0 * delta; // For joystick panning
         const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(playerObject.quaternion);
-        const right = new THREE.Vector3(1, 0, 0).applyQuaternion(playerObject.quaternion);
-        const move = new THREE.Vector3();
         
         if (isMobile) {
-          move.addScaledVector(right, moveVector.x * speed);
+          // Joystick X-axis rotates player (pan left/right)
+          playerObject.rotation.y -= moveVector.x * rotationSpeed;
+          // Joystick Y-axis moves forward/backward
+          const move = new THREE.Vector3();
           move.addScaledVector(forward, moveVector.y * speed);
+          
+          if (move.length() > 0) {
+            const newPosition = playerObject.position.clone().add(move);
+            let canMove = true;
+            enemyObjects.forEach(enemy => {
+              if (newPosition.distanceTo(enemy.position) < 1.5) canMove = false;
+            });
+            if (canMove) {
+              playerObject.position.copy(newPosition);
+              playerObject.position.x = Math.max(-18, Math.min(18, playerObject.position.x));
+              playerObject.position.z = Math.max(-18, Math.min(18, playerObject.position.z));
+            }
+          }
         } else {
-          const keys = { KeyW: moveVector.y > 0, KeyS: moveVector.y < 0, KeyA: moveVector.x < 0, KeyD: moveVector.x > 0 };
+          const right = new THREE.Vector3(1, 0, 0).applyQuaternion(playerObject.quaternion);
+          const move = new THREE.Vector3();
           if (keys.KeyW) move.addScaledVector(forward, speed);
           if (keys.KeyS) move.addScaledVector(forward, -speed);
           if (keys.KeyA) move.addScaledVector(right, -speed);
           if (keys.KeyD) move.addScaledVector(right, speed);
-        }
-        
-        if (move.length() > 0) {
-          const newPosition = playerObject.position.clone().add(move);
-          let canMove = true;
-          enemyObjects.forEach(enemy => {
-            if (newPosition.distanceTo(enemy.position) < 1.5) canMove = false;
-          });
-          if (canMove) {
-            playerObject.position.copy(newPosition);
-            playerObject.position.x = Math.max(-18, Math.min(18, playerObject.position.x));
-            playerObject.position.z = Math.max(-18, Math.min(18, playerObject.position.z));
+          
+          if (move.length() > 0) {
+            const newPosition = playerObject.position.clone().add(move);
+            let canMove = true;
+            enemyObjects.forEach(enemy => {
+              if (newPosition.distanceTo(enemy.position) < 1.5) canMove = false;
+            });
+            if (canMove) {
+              playerObject.position.copy(newPosition);
+              playerObject.position.x = Math.max(-18, Math.min(18, playerObject.position.x));
+              playerObject.position.z = Math.max(-18, Math.min(18, playerObject.position.z));
+            }
           }
         }
       }
@@ -810,6 +809,7 @@
       }
       
       function restartGame() {
+        gameOverSound.pause(); // Stop game over sound
         gameOver = false;
         gamePaused = true;
         score = 0;
